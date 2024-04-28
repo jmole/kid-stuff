@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexagonal Grid</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@75..112.5,100..800&display=swap');
+
+        .martian-mono {
+            font-family: "Martian Mono", monospace;
+            font-optical-sizing: auto;
+            font-weight: 500;
+            font-style: normal;
+            font-variation-settings:
+                "width" 112.5;
+        }
+
+        #title {
+            font-size: 30px;
+            font-weight: bold;
+            width: 75%;
+            padding-bottom:20px;
+        }
+
+        #sum {
+            color: red;
+        }
+
+        body {
+            background-color: dimgray;
+        }
+
+        .main {
+            display: flex;
+            --s: 100px;
+            /* size  */
+            --m: 4px;
+            /* margin */
+            --f: calc(1.732 * var(--s) + 4 * var(--m) - 1px);
+            page-break-inside: avoid;
+            box-sizing: border-box;
+            width: 8.5in;
+            height: 11in;
+            padding: 15mm;
+            margin: 0 auto;
+            display: flex;
+            align-self: center;
+            flex-wrap: wrap;
+            flex-direction: row;
+            align-self: normal;
+            align-items: stretch;
+            align-content: space-evenly;
+            justify-content: space-evenly;
+            page-break-after: always;
+            background: white;
+
+            flex-flow: row wrap;
+            overflow-y: hidden;
+        }
+
+        .container {
+            font-size: 0;
+            /*disable white space between inline block element */
+        }
+
+        .container div {
+            width: var(--s);
+            margin: var(--m);
+            height: calc(var(--s)*1.1547);
+            display: inline-grid;
+            font-size: initial;
+            align-content: center;
+            justify-content: center;
+            clip-path: polygon(0% 25%, 0% 75%, 50% 100%, 100% 75%, 100% 25%, 50% 0%);
+            background: rgb(236, 236, 236);
+            margin-bottom: calc(var(--m) - var(--s)*0.2885);
+        }
+
+        .container::before {
+            content: "";
+            width: calc(var(--s)/2 + var(--m));
+            float: left;
+            height: 120%;
+            shape-outside: repeating-linear-gradient(#0000 0 calc(var(--f) - 3px),
+                    #000 0 var(--f));
+        }
+        @media print {  
+            @page {
+                width: 8.5in;
+                height: 11in;
+                /* you can also specify margins here: */
+                margin: 0mm;
+                
+            }
+            body {
+                height:fit-content;
+                width: fit-content;
+                padding:0;
+                margin: 0;
+                background-color: #fff;
+            }
+            .main {
+                margin:0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="main" class="martian-mono main">
+        <div id="title">Find pairs that add up to: <span id="sum"></span></div>
+        <div id="hexGrid" class="container"></div>
+    </div>
+
+    <script>
+        function isChildBottomPastParentBottom(parentElement, childElement) {
+            // Get the position and size of the parent and child elements
+            var parentRect = parentElement.getBoundingClientRect();
+            var childRect = childElement.getBoundingClientRect();
+
+            // Check if the bottom of the child is past the bottom of the parent
+            return childRect.bottom > parentRect.bottom-60;
+        }
+
+        function createHexGrid(sum, size, smallest=1, largest=9) {
+            var list = [];
+            var row = 0;
+            const gridContainer = document.getElementById('hexGrid');
+            // Adjust --hex-size based on the input parameter
+            const main = document.getElementById('main')
+            main.style.setProperty('--s', size + 'px');
+            
+            document.getElementById('sum').innerText = sum
+            
+            for (let i = 0; i < 1000; i++) { // Example: Creates 30 hexagons
+                const hex = document.createElement('div');
+                hex.style.setProperty('font-size', Math.floor(size/3) + 'px');
+                hex.className = '';
+
+                hex.innerText = Math.floor(Math.random() * (largest-smallest+1)) + smallest; // Random number between 1 and 9
+                gridContainer.appendChild(hex);
+                if (isChildBottomPastParentBottom(main, hex)) {
+                    gridContainer.removeChild(hex);
+                    return i;
+                }
+            }
+        }
+
+        // Example usage with size parameter 100px
+        createHexGrid(4,50,-4, 8 );
+    </script>
+
+</body>
+
+</html>

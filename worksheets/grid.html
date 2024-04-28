@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Problem Generator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@75..112.5,100..800&display=swap');
+
+        .martian-mono {
+            font-family: "Martian Mono", monospace;
+            font-optical-sizing: auto;
+            font-weight: 500;
+            font-style: normal;
+            font-variation-settings:
+                "width" 112.5;
+        }
+        
+        body {
+            background-color: dimgray;
+        }
+        
+        .all-problems {
+            --vsize: 16px;
+            --hsize: 13px;
+            page-break-inside: avoid;
+            box-sizing: border-box;
+            width: 8.5in;
+            height: 11in;
+            padding: 15mm;
+            margin: 0 auto;
+            display: flex;
+            align-self: center;
+            flex-wrap: wrap;
+            flex-direction: row;
+            align-self: normal;
+            align-items: stretch;
+            align-content: space-evenly;
+            justify-content: space-evenly;
+            page-break-after: always;
+            background: white;
+            
+            flex-flow: row wrap;
+            overflow-y: hidden;
+        }
+
+        .math-problem {
+            --vertical-gap: 1px;
+            --horizontal-gap: 1px;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(auto, 1fr);
+            
+            /* border: 1px solid #ccc; */
+            /* background-color: #aaa; */
+            column-gap: var(--horizontal-gap);
+            row-gap: var(--vertical-gap);
+            margin: auto 20px 20px;
+            width: fit-content;
+            height: fit-content;
+        }
+
+        .math-problem > .ones_carry {
+            box-shadow: 1px -1px 0 1.1px #fff;
+        }
+
+        .digit, .operator {
+            background-color: #fff;
+            display: grid;
+            text-align: center;
+            align-items: center;
+            font-size: calc(var(--vsize)*0.8);
+            width: var(--hsize);
+            height: var(--vsize);
+            margin: 0px;
+            
+        }
+
+        .result {
+            height: calc(var(--vsize)*1.25);
+            align-items: normal;
+        }
+        
+        .result::before {
+            content: "";
+            position: relative;
+            width: 110%;
+            top: -1px;
+            border-top: 2px solid black; 
+        }
+
+        
+
+        .operator {
+            /* box-shadow: -1px -1px 0 1.1px #fff; */
+            height: calc(var(--size)*3 + var(--vertical-gap)*2);
+            grid-row: 1 / 4;
+            grid-column: 1;
+            
+            align-items: end;
+            vertical-align: text-bottom;
+        }
+
+        @media print {  
+            @page {
+                width: 8.5in;
+                height: 11in;
+                /* you can also specify margins here: */
+                margin: 0mm;
+                
+            }
+            body {
+                height:fit-content;
+                width: fit-content;
+                padding:0;
+                margin: 0;
+                background-color: #fff;
+            }
+            .all-problems {
+                margin:0;
+            }
+        }
+
+
+
+    </style>
+</head>
+<body class="martian-mono">
+<div id="problems" class="all-problems">
+</div>
+
+<script>
+    const max_val = 999999;
+    function prepareOperand(operand) {
+        try {
+            while (Math.abs(operand) > max_val) {
+                operand = Math.floor(operand/10);
+            }
+            return operand;
+        } catch (error) {
+            console.error(error);
+        }
+        return Math.floor(Math.random() * max_val);
+    }
+    
+    function question(operator, operand1, operand2) {
+
+        operand1 = prepareOperand(operand1);
+        operand2 = prepareOperand(operand2);
+
+        const mathProblemContainer = document.createElement('div');
+        mathProblemContainer.classList.add('math-problem');
+        document.getElementById("problems").appendChild(mathProblemContainer);
+
+        const maxOperand = Math.max(Math.abs(operand1), Math.abs(operand2));
+        const digits = Math.ceil(Math.log10(maxOperand+.4));
+        
+        const operand1Str = operand1.toString().padStart(digits, ' ');
+        const operand2Str = operand2.toString().padStart(digits, ' ');
+        
+        // Set width for math problem container with grid-template-columns:
+        mathProblemContainer.style.setProperty('grid-template-columns', `repeat(${digits+1}, 1fr)`);
+
+        // Add empty row for carry
+        createRow(" ".repeat(digits), mathProblemContainer); 
+        //mathProblemContainer.lastChild.classList.add('ones_carry');
+        // Create rows for operand1 and operand2
+        createRow(operand1Str, mathProblemContainer);
+        createRow(operand2Str, mathProblemContainer);
+        // empty row for result
+        createRow(" ".repeat(digits+1), mathProblemContainer, 'result'); 
+
+        
+        // Add operator
+        const operatorElement = document.createElement('div');
+        operatorElement.classList.add('operator');
+        operatorElement.textContent = operator;
+        mathProblemContainer.appendChild(operatorElement);
+
+
+        function createRow(operandStr, container, extraClass = '') {
+            for (let i = 0; i < operandStr.length; i++) {
+                const digit = operandStr[i];
+                const digitElement = document.createElement('div');
+                digitElement.classList.add('digit');
+                if (extraClass != '') {
+                    digitElement.classList.add(extraClass);
+                }
+                digitElement.textContent = digit === ' ' ? '' : digit; // Avoid adding spaces as content
+                container.appendChild(digitElement);
+            }
+        }
+    }
+
+    function grid() {
+
+    }
+
+    function isChildBottomPastParentBottom(parentElement, childElement) {
+    // Get the position and size of the parent and child elements
+    var parentRect = parentElement.getBoundingClientRect();
+    var childRect = childElement.getBoundingClientRect();
+
+    // Check if the bottom of the child is past the bottom of the parent
+    return childRect.bottom > parentRect.bottom-60;
+    }
+
+
+    function createProblems(s1,e1,s2,e2,size) {
+        const PPI = 96;
+        const problems = document.getElementById("problems");
+        problems.innerHTML = "";
+        problems.style.setProperty('--vsize', size + 'px');
+        problems.style.setProperty('--hsize', Math.ceil(size*0.6) + 'px');
+        for (let i = 0; i < 200; i++) {
+            const operand1 = Math.floor(Math.random() * (e1 - s1 + 1)) + s1;
+            const operand2 = Math.floor(Math.random() * (e2 - s2 + 1)) + s2;
+            question('+', operand1, operand2);
+            if (isChildBottomPastParentBottom(problems, problems.lastChild)) {
+                problems.removeChild(problems.lastChild);
+                return i;
+            }
+        }
+    }
+
+    function createProblemsOrdered(s1,e1,size) {
+        const PPI = 96;
+        const problems = document.getElementById("problems");
+        problems.innerHTML = "";
+        problems.style.setProperty('--vsize', size + 'px');
+        problems.style.setProperty('--hsize', Math.ceil(size*0.6) + 'px');
+        for (let i = s1; i <= e1; i++) {
+            for (let j = s1; j <= e1; j++) {
+                question('+', i, j);
+                if (isChildBottomPastParentBottom(problems, problems.lastChild)) {
+                    problems.removeChild(problems.lastChild);
+                    return i;
+                }
+
+            }
+
+        }
+    }
+
+    createProblems(3,20,3,20,17);
+    // createProblems(2,99999,2,99999,20);
+    //const range = (start, end) => Array.from({length: end - start + 1}, (_, i) => start + i);
+    // Example usage:
+    // for (let i = 0; i < 80; i++) {
+    //    question('+', Math.floor(Math.random() * 100), Math.floor(Math.random() * 100));
+    //}
+</script>
+</body>
+</html>
