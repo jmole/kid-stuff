@@ -1,9 +1,12 @@
+use std::fmt::Result;
 use std::io::{self,  BufRead};
 use rand::seq::SliceRandom;
 use rand::Rng;
 use std::collections::HashMap;
 use grid::*;
 use std::assert_eq;
+use bitflags::bitflags;
+
 
 
 
@@ -62,15 +65,100 @@ fn map(m: char) -> u8 {
     }
 }
 
-const GRID_SIZE: usize = 32;
-const EMPTY: char = ' ';
-const VALID_DIRS: [Direction; 2] = [Direction::EE, Direction::SS];
+const GRID_SIZE: usize = 48;
+const EMPTY: char = '.';
+const VALID_DIRS: [Direction; 4] = [Direction::EE, Direction::SS, Direction::SE, Direction::NE];
+
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    struct CharDirection: u8 {
+        const NONE = 0;
+        const N = 0b1;
+        const NE = 0b10;
+        const E = 0b100;
+        const SE = 0b1000;
+    }
+}
+
+
+impl Default for CharDirection {
+    fn default() -> Self {
+        CharDirection::NONE
+    }
+}
+
+#[derive(Clone)]
+#[derive(PartialEq)]
+#[derive(Debug)]
+#[derive(Copy)]
+struct Character {
+    letter: char,
+    directions: CharDirection,
+}
+
+impl std::fmt::Display for Character {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.letter)
+    }
+}
+
+impl Character {
+    fn is_empty(&self) -> bool {
+        return self.letter == EMPTY;
+    }
+    fn combine_with(&mut self, other: &Character) {
+        if self.is_empty() {
+            self.letter = other.letter;
+        } else {
+            assert_eq!(self.letter, other.letter);
+        }
+        self.directions |= other.directions;
+    }
+}
+
+impl Default for Character {
+    fn default() -> Self {
+        Character {
+            letter: EMPTY,
+            directions: CharDirection::default(),
+        }
+    }
+}
+
+impl From<char> for Character {
+    fn from(value: char) -> Self {
+        Character {
+            letter: value,
+            directions: CharDirection::NONE,
+        }
+    }
+}
+
+fn gg(char_grid: Grid<char>) -> Grid<Character> {
+    ggd(char_grid, CharDirection::default())
+}
+
+fn ggd(char_grid: Grid<char>, direction: CharDirection) -> Grid<Character> {
+    print!("gg");
+    let mut g = Grid::init(char_grid.rows(), char_grid.cols(), Character::default());
+    for ((row,col), val) in char_grid.indexed_iter() {
+        if *val != EMPTY {
+            g[(row,col)].letter = *val;
+            g[(row,col)].directions = direction;
+        }
+        
+    }
+    return g;
+}
 
 #[derive(Clone)]
 struct Board {
-    grid: Grid<char>,
+    grid: Grid<Character>,
     dir: Orientation,
 }
+
+
 
 
 /** "Convolves" a word with a grid.
@@ -80,7 +168,7 @@ If the word can't fit in the grid at the specified position, the position is sco
 
 TODO: implement letter-frequency into scoring, like scrabble.
 */ 
-fn convolve(grid: &Grid<char>, word: &Grid<char>) -> Grid<f32> {
+fn convolve(grid: &Grid<Character>, word: &Grid<Character>) -> Grid<f32> {
     if word.cols() > grid.cols() || word.rows() > grid.rows() {
         return grid![[]];
     }
@@ -92,14 +180,14 @@ fn convolve(grid: &Grid<char>, word: &Grid<char>) -> Grid<f32> {
         // Iterate through word and compare each letter to the corresponding letter
         // on the grid, if it were placed at row,col
         for ((r, c), letter) in word.indexed_iter() {
-            if *letter == EMPTY {
+            if letter.letter == EMPTY {
                 continue;
             }
             if let Some(value) = grid.get(r+row,c+col) {
-                if *value == EMPTY {
+                if value.letter == EMPTY {
                     *score = *score * 1.0;
-                } else if *value == *letter {
-                    // TODO: add letter frequency scoring
+                } else if value.letter == letter.letter && !value.directions.intersects(letter.directions) {
+                    // TODO: add letter frequency scor,ing
                     *score = *score * 2.0;
                 } else {
                     *score = 0.0;
@@ -113,7 +201,7 @@ fn convolve(grid: &Grid<char>, word: &Grid<char>) -> Grid<f32> {
 
 fn main() {
     println!("Hello, world!");
-    let initial_grid = Grid::init(GRID_SIZE, GRID_SIZE, EMPTY); // Initial empty grid
+    let initial_grid = Grid::init(GRID_SIZE, GRID_SIZE, Character::default()); // Initial empty grid
     let mut grid_stack = vec![Board{grid: initial_grid, dir: Orientation::None}]; // Stack of grids starts with the initial grid
     let mut words = read_and_clean_words();
     let table = Words::load(words.clone());
@@ -122,6 +210,7 @@ fn main() {
     place_words_backtrack_convolution(&mut grid_stack, &words, 0);
     let mut g = grid_stack.last().unwrap().grid.clone();
     //replace_dots_with_random_letters(&mut g);
+    println!("\ngrid size: {}", grid_stack.len());
     print_grid(&g);
                    
 }
@@ -152,13 +241,13 @@ enum Direction {
 struct Candidate {
     word: String,
     dir: Direction,
-    as_grid: Grid<char>,
+    as_grid: Grid<Character>,
     placements: Grid<f32>,
     max_placements: Vec<(usize, usize)>,
     max_placement_value: f32,
 }
 
-fn to_grid(word: &String, dir: Direction) -> Grid<char> {
+fn to_grid(word: &String, dir: Direction) -> Grid<Character> {
     use Direction::*;
     let cols = match dir {
         NN | SS => 1,
@@ -168,23 +257,23 @@ fn to_grid(word: &String, dir: Direction) -> Grid<char> {
         EE | WW => 1,
         _ => word.len()
     };
-    // row increment, col increment, row start, end, col start, end
+    // row increment, col increment, row start, col start, char direction
     let L = word.len() as isize - 1;
-    let (ri, ci, rs, re, cs, ce) = match dir {
-        EE => ( 0,  1, 0, 0, 0, L),
-        WW => ( 0, -1, 0, 0, L, 0),
-        NN => (-1,  0, L, 0, 0, 0),
-        SS => ( 1,  0, 0, L, 0, 0),
-        SE => ( 1,  1, 0, L, 0, L),
-        SW => ( 1, -1, 0, L, L, 0),
-        NE => (-1,  1, L, 0, 0, L),
-        NW => (-1, -1, L, 0, L, 0),
+    let (ri, ci, rs, cs, char_d) = match dir {
+        EE => ( 0,  1, 0, 0, CharDirection::E),
+        WW => ( 0, -1, 0, L, CharDirection::E ),
+        NN => (-1,  0, L, 0, CharDirection::N),
+        SS => ( 1,  0, 0, 0, CharDirection::N),
+        SE => ( 1,  1, 0, 0, CharDirection::SE),
+        SW => ( 1, -1, 0, L, CharDirection::NE),
+        NE => (-1,  1, L, 0, CharDirection::NE),
+        NW => (-1, -1, L, L, CharDirection::SE),
     };
-    let mut g = Grid::init(rows,cols, EMPTY);
+    let mut g = Grid::init(rows,cols, Character::default() );
     let mut r = rs;
     let mut c = cs;
     for letter in word.chars() {
-        g[(r as usize,c as usize)] = letter;
+        g[(r as usize,c as usize)] = Character {letter, directions: CharDirection::from(char_d)};
         r = r + ri;
         c = c + ci;
     }
@@ -192,7 +281,7 @@ fn to_grid(word: &String, dir: Direction) -> Grid<char> {
 }
 
 impl Candidate {
-    fn create(grid: &Grid<char>, word: &String, valid_directions: &[Direction]) -> Vec<Candidate>{
+    fn create(grid: &Grid<Character>, word: &String, valid_directions: &[Direction]) -> Vec<Candidate>{
         let mut candidates: Vec<Candidate> = vec![];
         for dir in valid_directions {
             let word_grid = to_grid(word, dir.clone());
@@ -214,12 +303,12 @@ impl Candidate {
     }
 }
 
-fn combine(grid: &mut Grid<char>, word: &Grid<char>, row: usize, column: usize) {
+fn combine(grid: &mut Grid<Character>, word: &Grid<Character>, row: usize, column: usize) {
     for ((r,c),val) in grid.indexed_iter_mut() {
         if r >= row && c >= column && c-column < word.cols() &&  r-row < word.rows() {
             let letter = word[(r-row,c-column)];
-            if letter != EMPTY {
-                *val = letter;
+            if !letter.is_empty() {
+                val.combine_with(&letter);
             }
         }
     }
@@ -251,6 +340,7 @@ fn place_words_backtrack_convolution(grid_stack: &mut Vec<Board>, words: &Vec<St
             grid_stack.pop();
         }
     }
+    println!("gridstack size {}", grid_stack.len());
     return true;
 }
 
@@ -264,13 +354,13 @@ fn replace_dots_with_random_letters(grid: &mut Grid<char>) {
     }
 }
 
-fn try_place_word(grid: &Grid<char>, word: &str, row: usize, col: usize, orientation: &Orientation) -> bool {
+fn try_place_word(grid: &Grid<Character>, word: &str, row: usize, col: usize, orientation: &Orientation) -> bool {
     print!("{} {} {}", word, row, col);
     match orientation {
         Orientation::Horizontal => {
             if col + word.len() > grid.cols() { return false; }
             for (i, c) in word.chars().enumerate() {
-                if grid[(row,col + i)] != EMPTY && grid[(row,col + i)] != c {
+                if !grid[(row,col + i)].is_empty() && grid[(row,col + i)].letter != c {
                     return false; // Clash with already placed word
                 }
             }
@@ -278,7 +368,7 @@ fn try_place_word(grid: &Grid<char>, word: &str, row: usize, col: usize, orienta
         Orientation::Vertical => {
             if row + word.len() > grid.rows() { return false; }
             for (i, c) in word.chars().enumerate() {
-                if grid[(row + i,col)] != EMPTY && grid[(row + i,col)] != c {
+                if !grid[(row + i,col)].is_empty() && grid[(row + i,col)].letter != c {
                     return false; // Clash with already placed word
                 }
             }
@@ -315,12 +405,12 @@ fn place_words_backtrack(grid_stack: &mut Vec<Board>, words: &Vec<String>, index
                     match orientation {
                         Orientation::Horizontal => {
                             for (i, c) in word.chars().enumerate() {
-                                grid_attempt[(rnd[row],rnd[col] + i)] = c;
+                                grid_attempt[(rnd[row],rnd[col] + i)] = Character::from(c);
                             }
                         },
                         Orientation::Vertical => {
                             for (i, c) in word.chars().enumerate() {
-                                grid_attempt[(rnd[row] + i, rnd[col])] = c;
+                                grid_attempt[(rnd[row] + i, rnd[col])] = Character::from(c);
                             }
                         },
                         Orientation::None => {},
@@ -338,7 +428,7 @@ fn place_words_backtrack(grid_stack: &mut Vec<Board>, words: &Vec<String>, index
     false
 }
 
-fn print_grid(grid: &Grid<char>) {
+fn print_grid<T: std::fmt::Display + Copy>(grid: &Grid<T>) {
     for row in grid.iter_rows() {
         for &cell in row {
             print!("{} ", cell);
@@ -374,14 +464,14 @@ mod tests {
 
     #[test]
     fn test_convolve() {
-        let g = grid![  
+        let g = gg(grid![  
             [' ',' ','a','y']
             [' ','b',' ',' ']
             [' ',' ',' ','z']
             [' ',' ',' ',' ']
-        ];
-        let w1 = grid![['a', 'b', 'c', 'd']];
-        let w2 = grid![['a'] ['b'] ['c'] ['d']];
+        ]);
+        let w1 = gg(grid![['a', 'b', 'c', 'd']]);
+        let w2 = gg(grid![['a'] ['b'] ['c'] ['d']]);
         let mut z1 = convolve(&g, &w1);
         let mut z2 = convolve(&g, &w2);
 
@@ -391,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_convolve_2() {
-        let g = grid![  
+        let g = gg(grid![  
             [' ',' ','a','y']
             [' ','b',' ',' ']
             [' ',' ',' ','z']
@@ -399,9 +489,9 @@ mod tests {
             ['a',' ',' ','b']
             ['a',' ',' ',' ']
             ['z',' ',' ',' ']
-        ];
-        let w1 = grid![['a', 'b', 'c', 'd']];
-        let w2 = grid![['a'] ['b'] ['c'] ['d']];
+        ]);
+        let w1: Grid<Character> = gg(grid![['a', 'b', 'c', 'd']]);
+        let w2 = gg(grid![['a'] ['b'] ['c'] ['d']]);
         let z1 = convolve(&g, &w1);
         let z2 = convolve(&g, &w2);
 
@@ -423,22 +513,22 @@ mod tests {
         let gse = to_grid(&s, Direction::SE);
         let EEE: char = EMPTY;  
         print!("{:?}", ge);
-        assert_eq!(ge, grid![['h','e','l','l','o']]);
-        assert_eq!(gs, grid![['h'] ['e'] ['l'] ['l'] ['o']]);
-        assert_eq!(gne, grid![
+        assert_eq!(ge, ggd(grid![['h','e','l','l','o']], CharDirection::E));
+        assert_eq!(gs, ggd(grid![['h'] ['e'] ['l'] ['l'] ['o']], CharDirection::N));
+        assert_eq!(gne, ggd(grid![
             [EEE,EEE,EEE,EEE,'o']
             [EEE,EEE,EEE,'l',EEE]
             [EEE,EEE,'l',EEE,EEE]
             [EEE,'e',EEE,EEE,EEE]
             ['h',EEE,EEE,EEE,EEE]
-            ]);
-        assert_eq!(gse, grid![
+            ], CharDirection::NE));
+        assert_eq!(gse, ggd(grid![
             ['h',EEE,EEE,EEE,EEE]
             [EEE,'e',EEE,EEE,EEE]
             [EEE,EEE,'l',EEE,EEE]
             [EEE,EEE,EEE,'l',EEE]
             [EEE,EEE,EEE,EEE,'o']
-            ]);
+            ], CharDirection::SE));
     }
 
 }
